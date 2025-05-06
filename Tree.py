@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import networkx as nx
-from sympy import symbols, lambdify
+from sympy import symbols, lambdify, Add
+import numpy as np
 
 class Tree:
     class Node:
@@ -14,7 +15,6 @@ class Tree:
             self.children.append(child_node)
 
         def evaluate(self):
-            # Recursively evaluate all children
             child_values = [child.evaluate() for child in self.children]
             return self.func(*child_values)
 
@@ -55,7 +55,6 @@ class Tree:
 
         add_node(self.root)
 
-        # Tree layout helper
         def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
             pos = {}
             def _hierarchy_pos(G, root, left, right, vert_loc, xcenter, pos, parent=None):
@@ -79,11 +78,18 @@ class Tree:
         plt.show()
 
 
-x1, x2 = symbols('x1 x2')
+n = 2  # Number of variables
 
-func_mul = lambdify((x1, x2), x1 * x2, "numpy")
-func_add = lambdify((x1, x2), x1 + x2, "numpy")
-func_sub = lambdify((x1, x2), x1 - x2, "numpy")
+xs = symbols(f'x1:{n+1}')
+print(xs)
+
+mul = np.prod(xs)
+add = sum(xs)
+sub = xs[0] - Add(*xs[1:])
+
+func_mul = lambdify(xs, mul, modules='numpy')
+func_add = lambdify(xs, add, modules='numpy')
+func_sub = lambdify(xs, sub, modules='numpy')
 
 root = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2")
 node2 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2")
