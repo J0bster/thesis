@@ -39,7 +39,7 @@ class Tree:
             if self.label:
                 # m.store(self.label, result)
                 if self.label not in m.variable_storage:
-                    m.store(self.label, result)
+                    m.store(self.label, 0)
                 else:
                     m.update(self.label, result)
             return result
@@ -58,11 +58,8 @@ class Tree:
                     m.store(self.value, 0)  # Default to 0 if not in memory
                 return m.load(self.value)
             else:
-                # If the value is a constant, store it in memory with a unique label
-                label = f"Leaf:{self.value}"
-                if label not in m.variable_storage:
-                    m.store(label, self.value)
-                return m.load(label)
+                # If the value is a constant, return it directly
+                return self.value
 
 
 
@@ -111,3 +108,40 @@ class Tree:
                 font_size=10, font_weight='bold')
         plt.show()
         
+        
+# from memory_tracker import MemoryTracker
+# from sympy import symbols, lambdify
+
+# def test_evaluate_with_memory():
+#     # Define a simple tree
+#     x1, x2 = symbols('x1 x2')
+#     func_add = lambdify([x1, x2], x1 + x2, modules='numpy')
+
+#     # Create the tree structure
+#     root = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2")
+#     leaf1 = Tree.Leaf("x1")
+#     leaf2 = Tree.Leaf("x2")
+
+#     root.add_child(leaf1)
+#     root.add_child(leaf2)
+
+#     # Initialize memory tracker
+#     m = MemoryTracker()
+#     m.store("x1", 3)
+#     m.store("x2", 4)
+
+#     # Create the tree and evaluate with memory
+#     tree = Tree(root)
+#     result = tree.evaluate_with_memory(m)
+#     print(m.dump())
+
+#     # Assertions
+#     assert result == 7  # 3 + 4 = 7
+#     assert m.load("x1") == 3
+#     assert m.load("x2") == 4
+#     assert m.load("x1 + x2") == 7
+
+#     print("Test passed!")
+    
+# if __name__ == "__main__":
+#     test_evaluate_with_memory()
