@@ -13,6 +13,11 @@ class Tree:
     
     def evaluate_with_memory(self, m):
         return self.root.evaluate_with_memory(m)
+    
+    def evaluate_with_3_node_limit(self, memory_tracker):
+        return self.root.evaluate_with_memory_limit(memory_tracker)
+
+    
 
     class Node:
         def __init__(self, func, args, label=None):
@@ -43,7 +48,7 @@ class Tree:
                 else:
                     m.update(self.label, result)
             return result
-
+        
     class Leaf:
         def __init__(self, value):
             self.value = value
@@ -110,4 +115,3 @@ class Tree:
                 node_size=2000, node_color='skyblue',
                 font_size=10, font_weight='bold')
         plt.show()
-        

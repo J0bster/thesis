@@ -57,6 +57,8 @@ def test_tree_evaluation_and_plot():
     except Exception as e:
         assert False, f"Plotting raised an exception: {e}"
         
+    assert tree.evaluate() == -1044, "Tree evaluation did not return the expected result."
+        
 if __name__ == "__main__":
     test_tree_evaluation_and_plot()
     print("All tests passed!")
