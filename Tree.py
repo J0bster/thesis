@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from sympy import symbols, lambdify, Add
 import numpy as np
+import galois
 from memory_tracker import MemoryTracker
 
 class Tree:
@@ -12,7 +13,12 @@ class Tree:
         return self.root.evaluate()
     
     def evaluate_with_memory(self, m):
-        return self.root.evaluate_with_memory(m)
+        p = 17 # TODO acutally compute value
+        bitsize = 5 # TODO actually compute value
+        GF = galois.GF(p)
+        registers = ['R1', 'R2', 'R3']
+        [m.store(label+'_'+str(i), GF(0)) for i in range(bitsize) for label in registers]
+        return self.root.evaluate_with_memory(m, registers, bitsize, GF)
     
     def evaluate_with_3_node_limit(self, memory_tracker):
         return self.root.evaluate_with_memory_limit(memory_tracker)
@@ -33,20 +39,49 @@ class Tree:
             child_values = [child.evaluate() for child in self.children]
             return self.func(*child_values)
 
-        def evaluate_with_memory(self, m):
-            # Evaluate children with memory
-            child_values = [child.evaluate_with_memory(m) for child in self.children]
-            # Map child values to the expected arguments
-            arg_values = {arg: value for arg, value in zip(self.args, child_values)}
-            # Compute the result
-            result = self.func(**arg_values)
-            # Store the result in memory if the node has a label
-            if self.label:
-                # m.store(self.label, result)
-                if self.label not in m.variable_storage:
-                    m.store(self.label, result)
-                else:
-                    m.update(self.label, result)
+        def evaluate_with_memory(self, m, registers, bitsize, GF, inverse=False):
+            """
+            First element in registers is our target
+            Second is Rl, Third is Rr
+            """
+            """for 𝑗 = 1 . . . 𝑚 do
+                for 𝑐 ∈ {ℓ, 𝑟 }, 𝑖 = 1 . . . ⌈log 𝑘⌉ do
+                    𝑅𝑐,𝑖 ← 𝜔 𝑗 · 𝑅𝑐,𝑖
+                𝑃ℓ , 𝑃𝑟
+                for 𝑖 = 1 . . . ⌈log 𝑘⌉ do
+                    𝑅𝑢,𝑖 ← 𝑅𝑢,𝑖 − 𝑞𝑢,𝑖 (𝑅ℓ , 𝑅𝑟 )
+                𝑃 −1ℓ , 𝑃 −1𝑟
+                for 𝑐 ∈ {ℓ, 𝑟 }, 𝑖 = 1 . . . ⌈log 𝑘⌉ do
+                    𝑅𝑐,𝑖 ← 𝜔 − 𝑗 · 𝑅𝑐,𝑖
+            """
+            # TODO base case without any children.
+
+            orderofrootofunity = 5 # TODO
+            rootofunity= GF(1) # TODO
+            for j in range(1, orderofrootofunity + 1): # todo memory track all the loop variables
+                for c in registers[1:]:
+                    for i in range(bitsize):
+                        curlabel = c + '_' + str(i)
+                        m.update(curlabel, (rootofunity ** j) * m.load(curlabel))
+                assert len(self.children) == 2
+                self.children[0].evaluate_with_memory(m, registers[1:] + registers[:1]) 
+                self.children[1].evaluate_with_memory(m, registers[2:] + registers[:2]) 
+                for i in range(bitsize):
+                    curlabel = registers[0] + '_' + str(i)
+                    labell = registers[1] + '_' + str(i)
+                    labelr = registers[2] + '_' + str(i)
+                    if not inverse:
+                        m.update(curlabel, m.load(curlabel) - self.func(m.load(labell), m.load(labelr)))
+                    else:
+                        m.update(curlabel, m.load(curlabel) + self.func(m.load(labell), m.load(labelr)))
+                self.children[0].evaluate_with_memory(m, registers[1:] + registers[:1], inverse=True) 
+                self.children[1].evaluate_with_memory(m, registers[2:] + registers[:2], inverse=True) 
+                
+                for c in registers[1:]:
+                    for i in range(bitsize):
+                        curlabel = c + '_' + str(i)
+                        m.update(curlabel, (rootofunity ** -j) * m.load(curlabel))
+            ## TODO actually compute result from the registers
             return result
         
     class Leaf:
