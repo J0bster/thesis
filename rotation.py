@@ -28,6 +28,7 @@ def unmask_polynomial_multi(poly_expr, variables, x_values, m, field):
     for g in field.elements[1:]:
         if pow(g, m) == 1 and all(pow(g, k) != 1 for k in range(1, m)):
             omega = g
+            print(f"Found primitive root of unity: {omega}")
             break
     assert omega is not None, "No primitive root of unity found"
 
@@ -35,6 +36,7 @@ def unmask_polynomial_multi(poly_expr, variables, x_values, m, field):
     print("Random taus:", taus)
     results = []
     for j in range(m):
+        print(f" omega^{j} = {omega}^{j} = {pow(omega, j)}")
         rotated = [tau * omega**j + x for tau, x in zip(taus, x_values)]
         eval_j = field(int(poly_func(rotated)) % field.order)
         results.append(eval_j)
@@ -44,3 +46,14 @@ def unmask_polynomial_multi(poly_expr, variables, x_values, m, field):
     print("Recovered value:", recovered)
     print("Expected value:", field(int(poly_func(x_values)) % field.order))
     return recovered
+
+if __name__ == "__main__":
+    p = 17
+    GF = galois.GF(p)
+    m = 4
+    x = symbols("x")
+    poly_expr = x**2 + 2
+    x_val = GF(5)
+    recovered = unmask_polynomial_multi(poly_expr, [x], [x_val], m, GF)
+    expected = (5**2 + 2) % p
+    assert int(recovered) == expected

@@ -9,10 +9,14 @@ class MemoryTracker:
         self.max_num_variables = 0
 
     def _get_bit_size(self, value):
+        import galois
         if isinstance(value, int):
             return int(np.ceil(np.log2(value + 1))) if value > 0 else 1
         elif isinstance(value, float):
             return 64
+        elif hasattr(value, "field") and hasattr(value.field, "order"):
+            # For galois field elements
+            return int(np.ceil(np.log2(value.field.order)))
         else:
             return 32
 
