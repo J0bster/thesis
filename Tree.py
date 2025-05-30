@@ -176,48 +176,86 @@ class Tree:
 
 def test_tree_evaluate_with_3_node_limit():
     n = 2
+
     xs = symbols(f'x1:{n+1}')
-    func_mul = lambdify(xs, np.prod(xs), modules='numpy')
-    func_add = lambdify(xs, sum(xs), modules='numpy')
-    func_sub = lambdify(xs, xs[0] - Add(*xs[1:]), modules='numpy')
+    mul = np.prod(xs)
+    add = sum(xs)
+    sub = xs[0] - Add(*xs[1:])
+
+    func_mul = lambdify(xs, mul, modules='numpy')
+    func_add = lambdify(xs, add, modules='numpy')
+    func_sub = lambdify(xs, sub, modules='numpy')
 
     root = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2", isroot=True)
-
+    
+    # leaf1 = Tree.Leaf(5)
+    # leaf2 = Tree.Leaf(3)
+    
+    # root.add_child(leaf1)
+    # root.add_child(leaf2)
+    
+    # Uncomment the following lines to create a more complex tree structure
     node2 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2")
     node3 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2")
-    node4 = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2 2")
-    node5 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2 2")
-    node6 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2 2")
-    node7 = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2 3")
-
-    leaves = [Tree.Leaf(v) for v in [5, 3, 2, 1, 4, 6, 7, 8]]
-
+    
+    leaf1 = Tree.Leaf(5)
+    leaf2 = Tree.Leaf(3)
+    leaf3 = Tree.Leaf(2)
+    leaf4 = Tree.Leaf(1)
+    
     root.add_child(node2)
     root.add_child(node3)
-    node2.add_child(node4)
-    node2.add_child(node5)
-    node3.add_child(node6)
-    node3.add_child(node7)
+    node2.add_child(leaf1)
+    node2.add_child(leaf2)
+    node3.add_child(leaf3)
+    node3.add_child(leaf4)
 
-    node4.add_child(leaves[0])
-    node4.add_child(leaves[1])
-    node5.add_child(leaves[2])
-    node5.add_child(leaves[3])
-    node6.add_child(leaves[4])
-    node6.add_child(leaves[5])
-    node7.add_child(leaves[6])
-    node7.add_child(leaves[7])
+    # Uncomment the following lines to create a more complex tree structure
+    # node2 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2")
+    # node3 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2")
+    # node4 = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2 2")
+    # node5 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2 2")
+    # node6 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2 2")
+    # node7 = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2 3")
+
+    # leaf1 = Tree.Leaf(5)
+    # leaf2 = Tree.Leaf(3)
+    # leaf3 = Tree.Leaf(2)
+    # leaf4 = Tree.Leaf(1)
+    # leaf5 = Tree.Leaf(4)
+    # leaf6 = Tree.Leaf(6)
+    # leaf7 = Tree.Leaf(7)
+    # leaf8 = Tree.Leaf(8)
+
+    # root.add_child(node2)
+    # root.add_child(node3)
+    # node2.add_child(node4)
+    # node2.add_child(node5)
+    # node3.add_child(node6)
+    # node3.add_child(node7)
+
+    # node4.add_child(leaf1)
+    # node4.add_child(leaf2)
+    # node5.add_child(leaf3)
+    # node5.add_child(leaf4)
+    # node6.add_child(leaf5)
+    # node6.add_child(leaf6)
+    # node7.add_child(leaf7)
+    # node7.add_child(leaf8)
 
     tree = Tree(root)
+
     m = MemoryTracker()
 
     print("Evaluating full tree with memory-limited protocol:")
     result = tree.evaluate_with_3_node_limit(m)
+    # result_actual = tree.evaluate_with_memory(m)
+    print
     print(f"Tree evaluation result: {result}")
     print("Memory dump:", m.dump())
     print("Memory summary:", m.summary())
-
-    num_leaves = 8
+    
+    num_leaves = 8  # or whatever your tree uses
     log_n = math.ceil(math.log2(num_leaves))
     loglog_n = math.ceil(math.log2(log_n))
     theoretical_bound = log_n * loglog_n
@@ -225,13 +263,13 @@ def test_tree_evaluate_with_3_node_limit():
     summary = m.summary()
     print(f"max_bits used: {summary['max_bits']}")
     print(f"Theoretical O(log n * log log n): {theoretical_bound}")
+    
     print(f"Recursive call count: {Tree.recursiveCallCount}")
 
     try:
         tree.plot()
     except Exception as e:
         assert False, f"Plotting raised an exception: {e}"
-
 
 if __name__ == "__main__":
     test_tree_evaluate_with_3_node_limit()
