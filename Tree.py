@@ -12,6 +12,14 @@ class Tree:
 
     def __init__(self, root):
         self.root = root
+        
+    def _max_leaf_value(self):
+        def find_max(node):
+            if isinstance(node, self.Leaf):
+                return int(node.value)
+            return max(find_max(child) for child in node.children)
+        return find_max(self.root)
+
 
     def evaluate(self):
         return self.root.evaluate()
@@ -20,8 +28,10 @@ class Tree:
         return self.root.evaluate_with_memory(m)
     
     def evaluate_with_3_node_limit(self, m):
-        p = 17
-        bitsize = math.ceil(np.log2(4))  # Adjust as needed
+        p = 2**4
+        max_val = self._max_leaf_value()
+        bitsize = 3
+        print(f"Bitsize for GF: {bitsize} (max_val={max_val})")
         GF = galois.GF(p)
         registers = ['R0', 'Rl', 'Rr']
         if isinstance(self.root, self.Leaf):
@@ -58,18 +68,19 @@ class Tree:
                         
         def evaluate_with_memory_limit(self, m, registers, bitsize, GF, inverse=False):
             Tree.recursiveCallCount += 1
-            print(f"[{self.label}] registers: {registers} (inverse={inverse})")
 
+            # If both children are leaves, process their bits
             if all(isinstance(child, Tree.Leaf) for child in self.children):
-                left_val = self.children[0].value
-                right_val = self.children[1].value
-                result_mod = self.func(left_val, right_val) % GF.characteristic
+                left_val = int(self.children[0].value)
+                right_val = int(self.children[1].value)
                 for i in range(bitsize):
+                    left_bit = (left_val >> i) & 1
+                    right_bit = (right_val >> i) & 1
+                    bit_val = self.func(left_bit, right_bit) % GF.characteristic
                     reg = f"{registers[0]}_{i}"
                     cur_val = m.load(reg)
-                    delta = GF(result_mod) if not inverse else -GF(result_mod)
+                    delta = GF(bit_val) if not inverse else -GF(bit_val)
                     m.update(reg, cur_val + delta)
-                    print(f"[{self.label}] Base case update: {reg} = {cur_val} -> {cur_val + delta}")
                 return
 
             n = bitsize - 1
@@ -78,69 +89,84 @@ class Tree:
             assert pow(omega, order) == 1, "omega must be a primitive root of unity"
 
             for j in range(1, order + 1):
+                # Rotate child registers
                 for c in registers[1:]:
                     for i in range(bitsize):
-                        reg = f'{c}_{i}'
-                        before = m.load(reg)
-                        m.update(reg, (omega ** j) * before)
+                        reg = f"{c}_{i}"
+                        m.update(reg, omega**j * m.load(reg))
 
-                self.children[0].evaluate_with_memory_limit(m, registers[1:] + registers[:1], bitsize, GF, inverse=False)
-                self.children[1].evaluate_with_memory_limit(m, registers[2:] + registers[:2], bitsize, GF, inverse=False)
+                # Evaluate children once each
+                self.children[0].evaluate_with_memory_limit(m, registers[1:] + registers[:1], bitsize, GF)
+                self.children[1].evaluate_with_memory_limit(m, registers[2:] + registers[:2], bitsize, GF)
 
+                # Update parent register with polynomial func
                 for i in range(bitsize):
-                    curlabel = f"{registers[0]}_{i}"
-                    labell = f"{registers[1]}_{i}"
-                    labelr = f"{registers[2]}_{i}"
-                    left_val = m.load(labell)
-                    right_val = m.load(labelr)
-                    cur_val = m.load(curlabel)
-                    func_val = self.func(left_val, right_val)
-                    new_val = cur_val + func_val if not inverse else cur_val - func_val
-                    print(f"[{self.label}] updating {curlabel}: {cur_val} -> {new_val} (inverse={inverse})")
-                    m.update(curlabel, new_val)
+                    Rl = m.load(f"{registers[1]}_{i}")
+                    Rr = m.load(f"{registers[2]}_{i}")
+                    output_reg = f"{registers[0]}_{i}"
+                    current_val = m.load(output_reg)
+                    poly_val = self.func(Rl, Rr)
+                    m.update(output_reg, current_val - poly_val)
 
+                # Undo child
                 self.children[0].evaluate_with_memory_limit(m, registers[1:] + registers[:1], bitsize, GF, inverse=True)
                 self.children[1].evaluate_with_memory_limit(m, registers[2:] + registers[:2], bitsize, GF, inverse=True)
 
+                # Undo rotation
                 for c in registers[1:]:
                     for i in range(bitsize):
-                        reg = f'{c}_{i}'
-                        before = m.load(reg)
-                        m.update(reg, (omega ** -j) * before)
+                        reg = f"{c}_{i}"
+                        m.update(reg, omega**(-j) * m.load(reg))
 
             return m.load(f"{registers[0]}_0")
 
     class Leaf:
-        def __init__(self, value):
+        def __init__(self, value, label=None):
             self.value = value
+            self.label = label if label is not None else str(value)
 
         def evaluate(self):
             return self.value
 
-        def evaluate_with_memory(self, m):
-            if isinstance(self.value, str):
-                if self.value not in m.variable_storage:
-                    m.store(self.value, 0)
-                return m.load(self.value)
-            else:
-                label = f"Leaf:{self.value}"
-                if label not in m.variable_storage:
-                    m.store(label, self.value)
-                return m.load(label)
-            
+        # Bitwise update for leaves (GF and int supported)
         def evaluate_with_memory_limit(self, m, registers, bitsize, GF, inverse=False):
+            reg_prefix = registers[0]
+            # If value is a label, load from memory; else, use value
+            if isinstance(self.value, str):
+                val = m.load(self.value)
+            else:
+                val = GF(self.value)
+                val = int(val)
             for i in range(bitsize):
-                reg = f'{registers[0]}_{i}'
-                m.update(reg, GF(self.value))
-                print(f"[Leaf] {self.value} -> {reg} = {GF(self.value)}")
-            return self.value
+                bit_val = (val >> i) & 1
+                reg = f"{reg_prefix}_{i}"
+                prev = m.load(reg)
+                delta = GF(bit_val) if not inverse else -GF(bit_val)
+                m.update(reg, prev + delta)
+                print(f"[Leaf] {self.value} {'+' if not inverse else '-'} {bit_val} -> {reg} = {prev + delta}")
+            return val
+
+        # Alternative version: update whole value (not bitwise)
+        def evaluate_with_memory_limit(self, m, registers, bitsize, GF, inverse=False):
+            reg_prefix = registers[0]
+            if isinstance(self.value, str):
+                val = m.load(self.value)
+            else:
+                val = GF(self.value)
+            for i in range(bitsize):
+                reg = f"{reg_prefix}_{i}"
+                prev = m.load(reg)
+                delta = val if not inverse else -val
+                m.update(reg, prev + delta)
+                print(f"[Leaf] {self.value} {'+' if not inverse else '-'} {val} -> {reg} = {prev + delta}")
+            return val
 
     def plot(self):
         G = nx.DiGraph()
         labels = {}
 
         def add_node(node, parent=None):
-            node_id = f"Leaf:{node.value}" if isinstance(node, self.Leaf) else f"Node:{id(node)}"
+            node_id = f"Leaf:{node.label}" if isinstance(node, self.Leaf) else f"Node:{id(node)}"
             G.add_node(node_id)
             labels[node_id] = str(node.value) if isinstance(node, self.Leaf) else node.label
             if parent is not None:
@@ -175,73 +201,59 @@ class Tree:
 
 
 def test_tree_evaluate_with_3_node_limit():
-    n = 2
+    x, y = symbols('x y')
+    xor_poly = x + y - 2*x*y
+    func_xor = lambdify([x, y], xor_poly, modules='numpy')
 
-    xs = symbols(f'x1:{n+1}')
-    mul = np.prod(xs)
-    add = sum(xs)
-    sub = xs[0] - Add(*xs[1:])
-
-    func_mul = lambdify(xs, mul, modules='numpy')
-    func_add = lambdify(xs, add, modules='numpy')
-    func_sub = lambdify(xs, sub, modules='numpy')
-
-    root = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2", isroot=True)
-    
-    # leaf1 = Tree.Leaf(5)
-    # leaf2 = Tree.Leaf(3)
-    
-    # root.add_child(leaf1)
-    # root.add_child(leaf2)
-    
-    # Uncomment the following lines to create a more complex tree structure
-    node2 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2")
-    node3 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2")
-    
-    leaf1 = Tree.Leaf(5)
-    leaf2 = Tree.Leaf(3)
-    leaf3 = Tree.Leaf(2)
-    leaf4 = Tree.Leaf(1)
-    
-    root.add_child(node2)
-    root.add_child(node3)
-    node2.add_child(leaf1)
-    node2.add_child(leaf2)
-    node3.add_child(leaf3)
-    node3.add_child(leaf4)
-
-    # Uncomment the following lines to create a more complex tree structure
-    # node2 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2")
-    # node3 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2")
-    # node4 = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2 2")
-    # node5 = Tree.Node(func_add, ['x1', 'x2'], label="x1 + x2 2")
-    # node6 = Tree.Node(func_sub, ['x1', 'x2'], label="x1 - x2 2")
-    # node7 = Tree.Node(func_mul, ['x1', 'x2'], label="x1 * x2 3")
-
+    # Build tree using only XOR nodes
+    root = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2", isroot=True)
+    # Example: add more nodes/leaves for a larger tree
+    # node2 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
+    # node3 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
     # leaf1 = Tree.Leaf(5)
     # leaf2 = Tree.Leaf(3)
     # leaf3 = Tree.Leaf(2)
     # leaf4 = Tree.Leaf(1)
-    # leaf5 = Tree.Leaf(4)
-    # leaf6 = Tree.Leaf(6)
-    # leaf7 = Tree.Leaf(7)
-    # leaf8 = Tree.Leaf(8)
 
     # root.add_child(node2)
     # root.add_child(node3)
-    # node2.add_child(node4)
-    # node2.add_child(node5)
-    # node3.add_child(node6)
-    # node3.add_child(node7)
+    # node2.add_child(leaf1)
+    # node2.add_child(leaf2)
+    # node3.add_child(leaf3)
+    # node3.add_child(leaf4)
+    
+    # More complex tree example
+    node2 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
+    node3 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
+    node4 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
+    node5 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
+    node6 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
+    node7 = Tree.Node(func_xor, ['x1', 'x2'], label="x1 XOR x2")
 
-    # node4.add_child(leaf1)
-    # node4.add_child(leaf2)
-    # node5.add_child(leaf3)
-    # node5.add_child(leaf4)
-    # node6.add_child(leaf5)
-    # node6.add_child(leaf6)
-    # node7.add_child(leaf7)
-    # node7.add_child(leaf8)
+    leaf1 = Tree.Leaf(0b01, label="leaf1")
+    leaf2 = Tree.Leaf(0b10, label="leaf2")
+    leaf3 = Tree.Leaf(0b01, label="leaf3")
+    leaf4 = Tree.Leaf(0b11, label="leaf4")
+    leaf5 = Tree.Leaf(0b00, label="leaf5")
+    leaf6 = Tree.Leaf(0b01, label="leaf6")
+    leaf7 = Tree.Leaf(0b10, label="leaf7")
+    leaf8 = Tree.Leaf(0b01, label="leaf8")
+
+    root.add_child(node2)
+    root.add_child(node3)
+    node2.add_child(node4)
+    node2.add_child(node5)
+    node3.add_child(node6)
+    node3.add_child(node7)
+
+    node4.add_child(leaf1)
+    node4.add_child(leaf2)
+    node5.add_child(leaf3)
+    node5.add_child(leaf4)
+    node6.add_child(leaf5)
+    node6.add_child(leaf6)
+    node7.add_child(leaf7)
+    node7.add_child(leaf8)
 
     tree = Tree(root)
 
@@ -255,7 +267,7 @@ def test_tree_evaluate_with_3_node_limit():
     print("Memory dump:", m.dump())
     print("Memory summary:", m.summary())
     
-    num_leaves = 8  # or whatever your tree uses
+    num_leaves = 8
     log_n = math.ceil(math.log2(num_leaves))
     loglog_n = math.ceil(math.log2(log_n))
     theoretical_bound = log_n * loglog_n
