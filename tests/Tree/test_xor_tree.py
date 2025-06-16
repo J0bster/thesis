@@ -88,18 +88,14 @@ def test_xor_tree_4_leaves_3bits(xor_func):
     assert run_xor_tree(tree, bitsize=3) == expected
 
 def test_xor_tree_8_leaves_3bits(xor_func):
-    # 8 leaves: perfect binary tree, height 3
     vals = [0b001, 0b010, 0b011, 0b100, 0b101, 0b110, 0b111, 0b000]
-    # Level 1
     leafs = [Tree.Leaf(v) for v in vals]
     n1 = Tree.Node(xor_func, ['x1', 'x2']); n1.add_child(leafs[0]); n1.add_child(leafs[1])
     n2 = Tree.Node(xor_func, ['x1', 'x2']); n2.add_child(leafs[2]); n2.add_child(leafs[3])
     n3 = Tree.Node(xor_func, ['x1', 'x2']); n3.add_child(leafs[4]); n3.add_child(leafs[5])
     n4 = Tree.Node(xor_func, ['x1', 'x2']); n4.add_child(leafs[6]); n4.add_child(leafs[7])
-    # Level 2
     n5 = Tree.Node(xor_func, ['x1', 'x2']); n5.add_child(n1); n5.add_child(n2)
     n6 = Tree.Node(xor_func, ['x1', 'x2']); n6.add_child(n3); n6.add_child(n4)
-    # Root
     root = Tree.Node(xor_func, ['x1', 'x2'], isroot=True)
     root.add_child(n5)
     root.add_child(n6)
